@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { useScroll } from 'framer-motion';
 import { BentoGrid } from './BentoGrid';
 import { CentralImage } from './CentralImage';
 import { ParticleSystem } from './ParticleSystem';
@@ -30,69 +30,56 @@ export const ImageTo3DExperience = () => {
       <div className="sticky top-0 h-screen w-full overflow-hidden">
         {/* Background */}
         <div className="absolute inset-0 bg-background">
-          {/* Ambient glow */}
+          {/* Ambient center glow */}
           <div 
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full opacity-30"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full"
             style={{
-              background: 'radial-gradient(circle, hsl(148, 100%, 61%, 0.1) 0%, transparent 70%)',
+              background: 'radial-gradient(circle, hsl(148, 100%, 61%, 0.08) 0%, transparent 70%)',
             }}
           />
           
-          {/* Grid pattern */}
+          {/* Subtle grid */}
           <div 
-            className="absolute inset-0 opacity-[0.02]"
+            className="absolute inset-0 opacity-[0.015]"
             style={{
               backgroundImage: `
                 linear-gradient(to right, hsl(148, 100%, 61%) 1px, transparent 1px),
                 linear-gradient(to bottom, hsl(148, 100%, 61%) 1px, transparent 1px)
               `,
-              backgroundSize: '60px 60px',
+              backgroundSize: '80px 80px',
             }}
           />
         </div>
 
-        {/* Main content container */}
+        {/* Content container */}
         <div 
           ref={containerRef}
           className="relative h-full w-full"
         >
-          {/* Header with badge, headline, and subtext */}
+          {/* Header - positioned at top, moves up on scroll */}
           <HeaderContent progress={progress} />
 
-          {/* Stage 1 & 2: Bento Grid */}
-          <BentoGrid 
-            progress={progress} 
-            onImagesRef={() => {}}
-          />
+          {/* Stages happen in the center area */}
+          <div className="absolute inset-0 flex items-center justify-center" style={{ paddingTop: '80px' }}>
+            {/* Stage 1-2: Bento Grid */}
+            <BentoGrid progress={progress} />
 
-          {/* Stage 2 & 3: Central Image with crack effect */}
-          <CentralImage 
-            progress={progress}
-            onExplode={() => {}}
-          />
+            {/* Stage 2-3: Central Image with crack */}
+            <CentralImage progress={progress} />
 
-          {/* Stage 3 & 4: Particle System */}
-          <ParticleSystem 
-            progress={progress}
-            containerRef={containerRef}
-          />
+            {/* Stage 3-4: Particles */}
+            <ParticleSystem 
+              progress={progress}
+              containerRef={containerRef}
+            />
 
-          {/* Stage 5: 3D Model Viewer */}
-          <ModelViewer progress={progress} />
+            {/* Stage 5: 3D Model */}
+            <ModelViewer progress={progress} />
+          </div>
 
-          {/* Scroll hint at bottom */}
+          {/* Scroll hint */}
           <ScrollHint progress={progress} />
         </div>
-
-        {/* Progress indicator (subtle) */}
-        <motion.div
-          className="absolute bottom-4 right-4 text-xs text-muted-foreground/40 font-mono"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1 }}
-        >
-          {Math.round(progress * 100)}%
-        </motion.div>
       </div>
     </div>
   );
