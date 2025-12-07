@@ -7,7 +7,6 @@ import productLamp from '@/assets/product-lamp.png';
 
 interface BentoGridProps {
   progress: number;
-  onImagesRef: (refs: { x: number; y: number; width: number; height: number; image: string }[]) => void;
 }
 
 const products = [
@@ -18,84 +17,94 @@ const products = [
   { id: 5, image: productLamp, alt: 'Desk Lamp' },
 ];
 
-export const BentoGrid = ({ progress, onImagesRef }: BentoGridProps) => {
-  // Stage 1: 0-0.2 - show bento grid
-  // Stage 2: 0.2-0.4 - merge to center
-  const stage1End = 0.2;
-  const stage2End = 0.4;
+export const BentoGrid = ({ progress }: BentoGridProps) => {
+  // Stage 1: 0-0.15 - show bento grid
+  // Stage 2: 0.15-0.3 - merge to center (all same size)
+  const stage1End = 0.15;
+  const stage2End = 0.3;
 
-  const gridOpacity = progress < stage2End ? 1 : 0;
+  const isVisible = progress < stage2End;
   const mergeProgress = progress < stage1End ? 0 : Math.min(1, (progress - stage1End) / (stage2End - stage1End));
 
-  // Calculate positions for merge animation
-  const getCardTransform = (index: number, mergeP: number) => {
-    // Starting positions in bento grid (relative to center)
-    const startPositions = [
-      { x: -120, y: -100, scale: 1, rotate: 0 },
-      { x: 120, y: -100, scale: 1.1, rotate: 0 },
-      { x: -180, y: 100, scale: 0.9, rotate: 0 },
-      { x: 0, y: 100, scale: 1, rotate: 0 },
-      { x: 180, y: 100, scale: 0.85, rotate: 0 },
+  // Easing function
+  const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+  const easedMerge = easeOutCubic(mergeProgress);
+
+  // Starting positions for bento grid (2 top, 3 bottom)
+  const getCardStyle = (index: number) => {
+    const positions = [
+      { x: -140, y: -90 },  // Top left
+      { x: 140, y: -90 },   // Top right
+      { x: -200, y: 90 },   // Bottom left
+      { x: 0, y: 90 },      // Bottom center
+      { x: 200, y: 90 },    // Bottom right
     ];
 
-    const start = startPositions[index];
-    const endX = 0;
-    const endY = 0;
-    const endScale = index === 2 ? 1.3 : 0;
-    const endRotate = (index - 2) * 15;
+    const start = positions[index];
+    
+    // All cards merge to center with same size
+    const currentX = start.x * (1 - easedMerge);
+    const currentY = start.y * (1 - easedMerge);
+    
+    // Fade out all except center card (index 3) during merge
+    const opacity = index === 3 
+      ? 1 
+      : 1 - easedMerge;
 
-    return {
-      x: start.x + (endX - start.x) * mergeP,
-      y: start.y + (endY - start.y) * mergeP,
-      scale: start.scale + (endScale - start.scale) * mergeP,
-      rotate: start.rotate + (endRotate - start.rotate) * mergeP,
-      opacity: index === 2 ? 1 : 1 - mergeP * 0.8,
-    };
+    // Scale - all same size, center card stays
+    const scale = index === 3 
+      ? 1 + easedMerge * 0.3 
+      : 1 - easedMerge * 0.5;
+
+    return { x: currentX, y: currentY, opacity, scale };
   };
+
+  if (!isVisible) return null;
 
   return (
     <motion.div
-      className="absolute inset-0 flex items-center justify-center"
-      style={{ opacity: gridOpacity }}
-      transition={{ duration: 0.3 }}
+      className="absolute inset-0 flex items-center justify-center z-10"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
     >
-      <div className="relative w-full max-w-2xl h-[400px] md:h-[500px]">
+      <div className="relative">
         {products.map((product, index) => {
-          const transform = getCardTransform(index, mergeProgress);
-          const floatDelay = index * 0.5;
+          const style = getCardStyle(index);
+          const floatDelay = index * 0.4;
 
           return (
             <motion.div
               key={product.id}
-              className="absolute left-1/2 top-1/2 w-32 h-32 md:w-44 md:h-44"
+              className="absolute w-28 h-28 md:w-36 md:h-36"
               style={{
-                x: transform.x,
-                y: transform.y,
-                scale: transform.scale,
-                rotate: transform.rotate,
-                opacity: transform.opacity,
-                marginLeft: '-4.5rem',
-                marginTop: '-4.5rem',
+                x: style.x,
+                y: style.y,
+                scale: style.scale,
+                opacity: style.opacity,
+                left: '50%',
+                top: '50%',
+                marginLeft: '-3.5rem',
+                marginTop: '-3.5rem',
               }}
-              animate={{
-                y: [transform.y - 4, transform.y + 4, transform.y - 4],
-              }}
+              animate={mergeProgress === 0 ? {
+                y: [style.y - 6, style.y + 6, style.y - 6],
+              } : {}}
               transition={{
                 y: {
-                  duration: 4,
+                  duration: 3,
                   repeat: Infinity,
                   ease: 'easeInOut',
                   delay: floatDelay,
                 },
               }}
             >
-              <div className="relative w-full h-full rounded-2xl overflow-hidden border border-primary/30 bg-card/50 backdrop-blur-sm glow-primary-subtle group cursor-pointer">
+              <div className="w-full h-full rounded-2xl overflow-hidden border border-primary/40 bg-card/60 backdrop-blur-sm glow-primary-subtle">
                 <img
                   src={product.image}
                   alt={product.alt}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  className="w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </div>
             </motion.div>
           );

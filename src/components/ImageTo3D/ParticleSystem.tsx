@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 
 interface Particle {
@@ -10,7 +10,8 @@ interface Particle {
   originY: number;
   size: number;
   color: string;
-  velocity: { x: number; y: number };
+  angle: number;
+  speed: number;
   delay: number;
 }
 
@@ -24,41 +25,41 @@ export const ParticleSystem = ({ progress, containerRef }: ParticleSystemProps) 
   const particlesRef = useRef<Particle[]>([]);
   const animationRef = useRef<number>(0);
 
-  // Stage timing
-  const stage3Start = 0.4;
-  const stage3End = 0.6;
-  const stage4Start = 0.6;
-  const stage4End = 0.8;
+  // Stage timing - particles start AFTER crack
+  const explosionStart = 0.45;
+  const explosionEnd = 0.6;
+  const convergenceStart = 0.6;
+  const convergenceEnd = 0.78;
 
-  // Calculate visibility and animation phase
-  const isVisible = progress >= stage3Start && progress < stage4End;
+  const isVisible = progress >= explosionStart && progress < convergenceEnd;
   
   // Explosion progress (0-1)
-  const explosionProgress = progress < stage3Start ? 0 : 
-    progress < stage3End ? (progress - stage3Start) / (stage3End - stage3Start) : 1;
+  const explosionProgress = progress < explosionStart ? 0 : 
+    progress < explosionEnd ? (progress - explosionStart) / (explosionEnd - explosionStart) : 1;
   
   // Convergence progress (0-1)
-  const convergenceProgress = progress < stage4Start ? 0 :
-    progress < stage4End ? (progress - stage4Start) / (stage4End - stage4Start) : 1;
+  const convergenceProgress = progress < convergenceStart ? 0 :
+    progress < convergenceEnd ? (progress - convergenceStart) / (convergenceEnd - convergenceStart) : 1;
 
   // Initialize particles
   const initParticles = useCallback((width: number, height: number) => {
     const particles: Particle[] = [];
     const centerX = width / 2;
     const centerY = height / 2;
-    const particleCount = 200;
+    const particleCount = 300;
 
     const colors = [
-      'hsl(148, 100%, 61%)', // Primary green
-      'hsl(148, 100%, 70%)', // Lighter green
-      'hsl(148, 80%, 50%)',  // Darker green
-      'hsl(160, 100%, 60%)', // Teal
-      'hsl(0, 0%, 90%)',     // White
+      'hsl(148, 100%, 61%)',
+      'hsl(148, 100%, 70%)',
+      'hsl(148, 80%, 55%)',
+      'hsl(155, 100%, 60%)',
+      'hsl(0, 0%, 95%)',
+      'hsl(0, 0%, 85%)',
     ];
 
     for (let i = 0; i < particleCount; i++) {
-      const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.5;
-      const distance = 150 + Math.random() * 300;
+      const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.8;
+      const distance = 200 + Math.random() * 350;
       
       particles.push({
         x: centerX,
@@ -67,20 +68,17 @@ export const ParticleSystem = ({ progress, containerRef }: ParticleSystemProps) 
         originY: centerY,
         targetX: centerX + Math.cos(angle) * distance,
         targetY: centerY + Math.sin(angle) * distance,
-        size: 2 + Math.random() * 4,
+        size: 2 + Math.random() * 5,
         color: colors[Math.floor(Math.random() * colors.length)],
-        velocity: {
-          x: (Math.random() - 0.5) * 2,
-          y: (Math.random() - 0.5) * 2,
-        },
-        delay: Math.random() * 0.3,
+        angle,
+        speed: 0.5 + Math.random() * 1.5,
+        delay: Math.random() * 0.2,
       });
     }
 
     return particles;
   }, []);
 
-  // Animation loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -113,29 +111,37 @@ export const ParticleSystem = ({ progress, containerRef }: ParticleSystemProps) 
       const centerX = canvas.width / 2;
       const centerY = canvas.height / 2;
 
+      // Draw center glow during convergence
+      if (convergenceProgress > 0.3) {
+        const glowSize = 100 + convergenceProgress * 150;
+        const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, glowSize);
+        gradient.addColorStop(0, `hsla(148, 100%, 61%, ${convergenceProgress * 0.4})`);
+        gradient.addColorStop(0.5, `hsla(148, 100%, 61%, ${convergenceProgress * 0.1})`);
+        gradient.addColorStop(1, 'transparent');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
       particlesRef.current.forEach((particle, index) => {
-        // Calculate current position based on progress
+        const easeOutQuart = (t: number) => 1 - Math.pow(1 - t, 4);
+        const easeInOutCubic = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
         let currentX: number;
         let currentY: number;
-        
-        // Ease function
-        const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-        const easeInOutCubic = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
         if (explosionProgress < 1) {
           // Explosion phase
           const adjustedProgress = Math.max(0, explosionProgress - particle.delay) / (1 - particle.delay);
-          const easedProgress = easeOutCubic(Math.min(1, adjustedProgress));
+          const easedProgress = easeOutQuart(Math.min(1, adjustedProgress));
           
           currentX = particle.originX + (particle.targetX - particle.originX) * easedProgress;
           currentY = particle.originY + (particle.targetY - particle.originY) * easedProgress;
         } else {
-          // Convergence phase
+          // Convergence phase with spiral
           const easedConvergence = easeInOutCubic(convergenceProgress);
           
-          // Add spiral motion during convergence
-          const spiralAngle = index * 0.1 + convergenceProgress * Math.PI * 4;
-          const spiralRadius = (1 - convergenceProgress) * 50;
+          const spiralAngle = particle.angle + convergenceProgress * Math.PI * 6;
+          const spiralRadius = (1 - convergenceProgress) * 80;
           
           currentX = particle.targetX + (centerX - particle.targetX) * easedConvergence 
                      + Math.cos(spiralAngle) * spiralRadius;
@@ -143,32 +149,31 @@ export const ParticleSystem = ({ progress, containerRef }: ParticleSystemProps) 
                      + Math.sin(spiralAngle) * spiralRadius;
         }
 
-        // Add subtle floating motion
+        // Floating motion
         const time = Date.now() * 0.001;
-        currentX += Math.sin(time + index * 0.1) * 2;
-        currentY += Math.cos(time + index * 0.15) * 2;
+        currentX += Math.sin(time * particle.speed + index * 0.05) * 3;
+        currentY += Math.cos(time * particle.speed + index * 0.07) * 3;
 
-        // Calculate opacity
+        // Opacity
         let opacity = 1;
-        if (explosionProgress < 0.2) {
-          opacity = explosionProgress / 0.2;
-        } else if (convergenceProgress > 0.7) {
-          opacity = 1 - (convergenceProgress - 0.7) / 0.3;
+        if (explosionProgress < 0.15) {
+          opacity = explosionProgress / 0.15;
+        } else if (convergenceProgress > 0.75) {
+          opacity = 1 - (convergenceProgress - 0.75) / 0.25;
         }
 
-        // Draw particle with glow
-        const size = particle.size * (1 - convergenceProgress * 0.5);
+        const size = particle.size * (1 - convergenceProgress * 0.6);
         
-        // Glow
+        // Particle glow
         ctx.beginPath();
-        ctx.arc(currentX, currentY, size * 2, 0, Math.PI * 2);
-        const gradient = ctx.createRadialGradient(currentX, currentY, 0, currentX, currentY, size * 2);
-        gradient.addColorStop(0, particle.color.replace(')', `, ${opacity * 0.5})`).replace('hsl', 'hsla'));
-        gradient.addColorStop(1, 'transparent');
-        ctx.fillStyle = gradient;
+        ctx.arc(currentX, currentY, size * 3, 0, Math.PI * 2);
+        const glowGradient = ctx.createRadialGradient(currentX, currentY, 0, currentX, currentY, size * 3);
+        glowGradient.addColorStop(0, particle.color.replace(')', `, ${opacity * 0.4})`).replace('hsl', 'hsla'));
+        glowGradient.addColorStop(1, 'transparent');
+        ctx.fillStyle = glowGradient;
         ctx.fill();
 
-        // Core
+        // Particle core
         ctx.beginPath();
         ctx.arc(currentX, currentY, size, 0, Math.PI * 2);
         ctx.fillStyle = particle.color.replace(')', `, ${opacity})`).replace('hsl', 'hsla');
@@ -189,10 +194,10 @@ export const ParticleSystem = ({ progress, containerRef }: ParticleSystemProps) 
   return (
     <motion.canvas
       ref={canvasRef}
-      className="absolute inset-0 pointer-events-none"
+      className="absolute inset-0 pointer-events-none z-10"
       initial={{ opacity: 0 }}
       animate={{ opacity: isVisible ? 1 : 0 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.2 }}
     />
   );
 };

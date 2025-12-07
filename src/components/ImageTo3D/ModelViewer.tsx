@@ -1,6 +1,6 @@
 import { useRef, Suspense, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Environment, Float, MeshDistortMaterial, RoundedBox } from '@react-three/drei';
+import { OrbitControls, Float, MeshDistortMaterial, RoundedBox, Sparkles } from '@react-three/drei';
 import { motion } from 'framer-motion';
 import * as THREE from 'three';
 
@@ -8,82 +8,91 @@ interface ModelViewerProps {
   progress: number;
 }
 
-// Placeholder 3D model - a stylized abstract product
-const PlaceholderModel = ({ autoRotate }: { autoRotate: boolean }) => {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const [hovered, setHovered] = useState(false);
+// Stylized 3D product model
+const ProductModel = ({ autoRotate }: { autoRotate: boolean }) => {
+  const groupRef = useRef<THREE.Group>(null);
 
-  useFrame((state) => {
-    if (meshRef.current && autoRotate) {
-      meshRef.current.rotation.y += 0.003;
+  useFrame(() => {
+    if (groupRef.current && autoRotate) {
+      groupRef.current.rotation.y += 0.004;
     }
   });
 
   return (
-    <Float speed={2} rotationIntensity={0.2} floatIntensity={0.3}>
-      <group ref={meshRef as any}>
+    <group ref={groupRef}>
+      <Float speed={1.5} rotationIntensity={0.1} floatIntensity={0.2}>
         {/* Main body */}
-        <RoundedBox args={[1.5, 2, 1]} radius={0.15} smoothness={4}>
+        <RoundedBox args={[1.8, 2.4, 1.2]} radius={0.2} smoothness={4}>
           <MeshDistortMaterial
-            color="#1a1a2e"
-            roughness={0.3}
-            metalness={0.8}
-            distort={hovered ? 0.1 : 0.05}
-            speed={2}
+            color="#0f0f1a"
+            roughness={0.2}
+            metalness={0.9}
+            distort={0.03}
+            speed={1.5}
           />
         </RoundedBox>
         
-        {/* Accent ring */}
-        <mesh position={[0, 0.3, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.9, 0.05, 16, 100]} />
+        {/* Glowing accent rings */}
+        <mesh position={[0, 0.5, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[1.1, 0.04, 16, 100]} />
+          <meshStandardMaterial
+            color="#38ff8b"
+            emissive="#38ff8b"
+            emissiveIntensity={0.8}
+            metalness={1}
+            roughness={0.1}
+          />
+        </mesh>
+        
+        <mesh position={[0, -0.3, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[1.0, 0.03, 16, 100]} />
           <meshStandardMaterial
             color="#38ff8b"
             emissive="#38ff8b"
             emissiveIntensity={0.5}
             metalness={1}
-            roughness={0.2}
-          />
-        </mesh>
-        
-        {/* Top cap */}
-        <mesh position={[0, 1.2, 0]}>
-          <cylinderGeometry args={[0.3, 0.4, 0.3, 32]} />
-          <meshStandardMaterial
-            color="#2a2a3e"
-            metalness={0.9}
             roughness={0.1}
           />
         </mesh>
+        
+        {/* Top piece */}
+        <mesh position={[0, 1.4, 0]}>
+          <cylinderGeometry args={[0.35, 0.45, 0.4, 32]} />
+          <meshStandardMaterial
+            color="#1a1a2e"
+            metalness={0.95}
+            roughness={0.05}
+          />
+        </mesh>
 
-        {/* Glowing accent */}
-        <pointLight position={[0, 0, 2]} intensity={0.5} color="#38ff8b" />
-      </group>
-    </Float>
+        {/* Inner glow */}
+        <pointLight position={[0, 0, 1.5]} intensity={0.8} color="#38ff8b" distance={5} />
+        <pointLight position={[0, 0, -1.5]} intensity={0.4} color="#38ff8b" distance={4} />
+      </Float>
+      
+      {/* Ambient sparkles */}
+      <Sparkles count={50} size={2} speed={0.3} color="#38ff8b" opacity={0.6} scale={5} />
+    </group>
   );
 };
 
-// Loading fallback
 const LoadingFallback = () => (
   <mesh>
     <boxGeometry args={[1, 1, 1]} />
-    <meshStandardMaterial color="#38ff8b" wireframe />
+    <meshStandardMaterial color="#38ff8b" wireframe opacity={0.5} transparent />
   </mesh>
 );
 
 export const ModelViewer = ({ progress }: ModelViewerProps) => {
-  const [isInteracting, setIsInteracting] = useState(false);
   const [autoRotate, setAutoRotate] = useState(true);
   const interactionTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Stage timing
-  const stage4End = 0.8;
-  const stage5Start = 0.8;
-
-  const isVisible = progress >= stage4End;
-  const viewerOpacity = progress < stage5Start ? 0 : Math.min(1, (progress - stage5Start) / 0.1);
+  // Stage timing - appears after particles converge
+  const stage5Start = 0.78;
+  const isVisible = progress >= stage5Start;
+  const viewerOpacity = Math.min(1, (progress - stage5Start) / 0.1);
 
   const handleInteractionStart = () => {
-    setIsInteracting(true);
     setAutoRotate(false);
     if (interactionTimeoutRef.current) {
       clearTimeout(interactionTimeoutRef.current);
@@ -91,10 +100,9 @@ export const ModelViewer = ({ progress }: ModelViewerProps) => {
   };
 
   const handleInteractionEnd = () => {
-    setIsInteracting(false);
     interactionTimeoutRef.current = setTimeout(() => {
       setAutoRotate(true);
-    }, 2000);
+    }, 2500);
   };
 
   useEffect(() => {
@@ -109,82 +117,88 @@ export const ModelViewer = ({ progress }: ModelViewerProps) => {
 
   return (
     <motion.div
-      className="absolute inset-0 flex flex-col items-center justify-center px-4"
+      className="absolute inset-0 flex flex-col items-center justify-center px-4 z-10"
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: viewerOpacity, scale: 1 }}
-      transition={{ duration: 0.5, ease: 'easeOut' }}
+      transition={{ duration: 0.6, ease: 'easeOut' }}
     >
-      {/* 3D Viewer Card */}
+      {/* Background glow */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div 
+          className="w-[500px] h-[500px] rounded-full opacity-40"
+          style={{
+            background: 'radial-gradient(circle, hsl(148, 100%, 61%, 0.2) 0%, transparent 60%)',
+          }}
+        />
+      </div>
+
+      {/* 3D Canvas - NO box wrapper */}
       <div 
-        className="relative w-full max-w-lg aspect-square rounded-3xl overflow-hidden border border-primary/40 bg-card/80 backdrop-blur-xl glow-primary"
+        className="relative w-full max-w-lg aspect-square"
         onMouseDown={handleInteractionStart}
         onMouseUp={handleInteractionEnd}
         onMouseLeave={handleInteractionEnd}
         onTouchStart={handleInteractionStart}
         onTouchEnd={handleInteractionEnd}
       >
-        {/* Background gradient */}
-        <div className="absolute inset-0 bg-gradient-radial from-primary/5 via-transparent to-transparent" />
-        
         <Canvas
-          camera={{ position: [0, 0, 5], fov: 45 }}
+          camera={{ position: [0, 0, 6], fov: 40 }}
           dpr={[1, 2]}
+          style={{ background: 'transparent' }}
         >
           <Suspense fallback={<LoadingFallback />}>
-            <ambientLight intensity={0.4} />
+            <ambientLight intensity={0.3} />
             <spotLight
               position={[10, 10, 10]}
               angle={0.15}
               penumbra={1}
-              intensity={1}
+              intensity={1.2}
               color="#ffffff"
             />
             <spotLight
               position={[-10, -5, -10]}
               angle={0.3}
               penumbra={1}
-              intensity={0.5}
+              intensity={0.6}
               color="#38ff8b"
             />
             
-            <PlaceholderModel autoRotate={autoRotate} />
+            <ProductModel autoRotate={autoRotate} />
             
             <OrbitControls
               enableZoom={false}
               enablePan={true}
-              panSpeed={0.5}
-              rotateSpeed={0.5}
+              panSpeed={0.4}
+              rotateSpeed={0.6}
               minPolarAngle={Math.PI / 4}
               maxPolarAngle={Math.PI / 1.5}
             />
-            
-            <Environment preset="city" />
           </Suspense>
         </Canvas>
 
         {/* Interaction hint */}
         <motion.div
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-muted-foreground/60"
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 text-xs text-muted-foreground/50"
           initial={{ opacity: 0 }}
-          animate={{ opacity: isInteracting ? 0 : 1 }}
-          transition={{ delay: 1 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.5 }}
         >
-          Drag to rotate • Pan to move
+          Drag to rotate
         </motion.div>
       </div>
 
-      {/* Caption below viewer */}
+      {/* Caption and CTA below */}
       <motion.div
-        className="mt-8 text-center max-w-md"
-        initial={{ opacity: 0, y: 20 }}
+        className="mt-6 text-center max-w-md"
+        initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: viewerOpacity, y: 0 }}
-        transition={{ delay: 0.3 }}
+        transition={{ delay: 0.4, duration: 0.5 }}
       >
         <h3 className="text-xl md:text-2xl font-semibold text-foreground mb-2">
-          From flat pixels to real-time 3D
+          From flat pixels to real-time <span className="text-primary">3D</span>
         </h3>
-        <p className="text-sm md:text-base text-muted-foreground mb-6">
-          This is how MetaShop turns your images into interactive 3D assets, ready for AR, web, and e-commerce.
+        <p className="text-sm md:text-base text-muted-foreground mb-8">
+          MetaShop transforms your images into interactive 3D assets for AR, web, and e-commerce.
         </p>
         
         <motion.button
@@ -197,7 +211,7 @@ export const ModelViewer = ({ progress }: ModelViewerProps) => {
         
         <motion.a
           href="#"
-          className="block mt-4 text-sm text-primary/80 hover:text-primary transition-colors"
+          className="block mt-4 text-sm text-primary/70 hover:text-primary transition-colors"
           whileHover={{ x: 5 }}
         >
           See how it works →
